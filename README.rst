@@ -32,7 +32,22 @@ This app was developed as part of the Pinax ecosystem but is just a Django app a
 django-mailer
 -------------
 
-``django-mailer`` is a reusable Django app for queuing the sending of email.
+``django-mailer`` is a reusable Django app for queuing the sending of email. 
+It works by storing email in the database for later sending.
+
+Keep in mind that file attachments are also temporarily stored in the database, which means if you are sending files larger than several hundred KB in size, you are likely to run into database limitations on how large your query can be. If this happens, you'll either need to fall back to using Django's default mail backend, or increase your database limits (a procedure that depends on which database you are using).
+
+Requirements
+------------
+
+* Django >= 1.11
+
+* Databases: django-mailer supports all databases that Django supports, with the following notes:
+
+  * SQLite: you may experience 'database is locked' errors if the ``send_mail``
+    command runs when anything else is attempting to put items on the queue. For this reason
+    SQLite is not recommended for use with django-mailer.
+
 
 
 Getting Started

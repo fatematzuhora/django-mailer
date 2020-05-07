@@ -5,17 +5,21 @@ import logging
 import pickle
 import datetime
 
-from django.utils.encoding import python_2_unicode_compatible
+try:
+    from django.utils.encoding import python_2_unicode_compatible
+except ImportError:
+    def python_2_unicode_compatible(c):
+        return c
 from django.utils.timezone import now as datetime_now
 from django.core.mail import EmailMessage
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
 
 
-PRIORITY_HIGH = "1"
-PRIORITY_MEDIUM = "2"
-PRIORITY_LOW = "3"
-PRIORITY_DEFERRED = "4"
+PRIORITY_HIGH = 1
+PRIORITY_MEDIUM = 2
+PRIORITY_LOW = 3
+PRIORITY_DEFERRED = 4
 
 PRIORITIES = [
     (PRIORITY_HIGH, "high"),
@@ -68,11 +72,7 @@ class MessageManager(models.Manager):
         return self.filter(priority=PRIORITY_DEFERRED)
 
     def retry_deferred(self, new_priority=PRIORITY_MEDIUM):
-        count = 0
-        for message in self.deferred():
-            if message.retry(new_priority):
-                count += 1
-        return count
+        return self.deferred().update(priority=new_priority)
 
 
 base64_encode = base64.encodebytes if hasattr(base64, 'encodebytes') else base64.encodestring
@@ -112,9 +112,7 @@ class Message(models.Model):
     # The actual data - a pickled EmailMessage
     message_data = models.TextField()
     when_added = models.DateTimeField(default=datetime_now)
-    priority = models.CharField(max_length=1, choices=PRIORITIES, default=PRIORITY_MEDIUM)
-    # @@@ campaign?
-    # @@@ content_type?
+    priority = models.PositiveSmallIntegerField(choices=PRIORITIES, default=PRIORITY_MEDIUM)
 
     objects = MessageManager()
 
@@ -134,14 +132,6 @@ class Message(models.Model):
     def defer(self):
         self.priority = PRIORITY_DEFERRED
         self.save()
-
-    def retry(self, new_priority=PRIORITY_MEDIUM):
-        if self.priority == PRIORITY_DEFERRED:
-            self.priority = new_priority
-            self.save()
-            return True
-        else:
-            return False
 
     def _get_email(self):
         return db_to_email(self.message_data)
@@ -225,8 +215,6 @@ class DontSendEntry(models.Model):
 
     to_address = models.EmailField(max_length=254)
     when_added = models.DateTimeField()
-    # @@@ who added?
-    # @@@ comment field?
 
     objects = DontSendEntryManager()
 
@@ -259,7 +247,6 @@ class MessageLogManager(models.Manager):
             message_id=get_message_id(message.email),
             when_added=message.when_added,
             priority=message.priority,
-            # @@@ other fields from Message
             result=result_code,
             log_message=log_message,
         )
@@ -279,8 +266,7 @@ class MessageLog(models.Model):
     message_data = models.TextField()
     message_id = models.TextField(editable=False, null=True)
     when_added = models.DateTimeField(db_index=True)
-    priority = models.CharField(max_length=1, choices=PRIORITIES, db_index=True)
-    # @@@ campaign?
+    priority = models.PositiveSmallIntegerField(choices=PRIORITIES, db_index=True)
 
     # additional logging fields
     when_attempted = models.DateTimeField(default=datetime_now)
